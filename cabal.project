@@ -10,4 +10,8 @@ packages:
   proto-lens-runtime
   proto-lens-setup
   proto-lens-tests
-  proto-lens-tests-dep
+
+source-repository-package
+   type:     git
+   tag:      79ecc01213131da03a7198fc377606ce72ac037a
+   location: https://github.com/google/ghc-source-gen
