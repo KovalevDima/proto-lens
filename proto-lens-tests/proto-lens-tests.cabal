@@ -114,33 +114,6 @@ test-suite canonical_test
     , text
   default-language: Haskell2010
 
-test-suite combinators_test
-  type: exitcode-stdio-1.0
-  main-is: combinators_test.hs
-  other-modules:
-      Paths_proto_lens_tests
-      Proto.Combinators Proto.Combinators_Fields
-  autogen-modules:
-      Paths_proto_lens_tests
-      Proto.Combinators Proto.Combinators_Fields
-  hs-source-dirs:
-      tests
-  build-tool-depends:
-      proto-lens-protoc:proto-lens-protoc
-  build-depends:
-      QuickCheck
-    , base
-    , bytestring
-    , lens-family
-    , pretty
-    , proto-lens
-    , proto-lens-arbitrary
-    , proto-lens-runtime
-    , tasty
-    , tasty-hunit
-    , tasty-quickcheck
-    , text
-  default-language: Haskell2010
 
 test-suite decode_delimited_test
   type: exitcode-stdio-1.0

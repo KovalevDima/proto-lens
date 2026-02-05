@@ -132,7 +132,7 @@ generateModule modName fdesc imports publicImports definitions importedEnv servi
     mainImports = map (reexported . importQualified)
                     [ "Control.DeepSeq", "Data.ProtoLens.Prism" ]
     sharedImports = map (reexported . importQualified)
-              [ "Prelude", "Data.Int", "Data.Monoid", "Data.Word"
+              [ "Prelude", "Data.Int", "Data.Monoid", "Data.Word", "Data.Maybe"
               , "Data.ProtoLens"
               , "Data.ProtoLens.Encoding.Bytes"
               , "Data.ProtoLens.Encoding.Growing"
@@ -791,7 +791,7 @@ plainRecordField env (PlainFieldInfo kind f) = case kind of
     listType = listTy baseType
     vectorType = hsFieldVectorType f @@ baseType
     rawAccessor = var "Prelude.id"
-    maybeAccessor = var "Data.ProtoLens.maybeLens"
+    maybeAccessor = var "(\\x -> Lens.Family2.Unchecked.lens (Data.Maybe.fromMaybe x) (Prelude.const Prelude.Just))"
                           @@ hsFieldValueDefault env fd
 
 vectorAccessor :: HsExpr'
@@ -837,7 +837,7 @@ oneofRecordField env oneofInfo
                 , lensFieldType = baseType
                 , lensExp = var "Prelude.."
                                 @@ oneofFieldAccessor c
-                                @@ (var "Data.ProtoLens.maybeLens"
+                                @@ (var "(\\x -> Lens.Family2.Unchecked.lens (Data.Maybe.fromMaybe x) (Prelude.const Prelude.Just))"
                                               @@ hsFieldValueDefault env
                                                     (fieldDescriptor f))
                 }

@@ -14,6 +14,8 @@
 --
 -- See @README.md@ for instructions on how to use proto-lens with Cabal.
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Data.ProtoLens.Setup
     ( defaultMainGeneratingProtos
     , defaultMainGeneratingSpecificProtos
@@ -86,10 +88,14 @@ import Distribution.Verbosity
     , normal
 #endif
     )
+
+#if MIN_VERSION_Cabal(3,14,0)
+import Distribution.Utils.Path
+#else
+import System.FilePath ((</>), (<.>))
+#endif
 import System.FilePath
-    ( (</>)
-    , (<.>)
-    , equalFilePath
+    ( equalFilePath
     , isRelative
     , makeRelative
     , takeDirectory
@@ -108,6 +114,7 @@ import System.IO.Temp (withSystemTempDirectory)
 import System.Process (callProcess)
 
 import Data.ProtoLens.Compiler.ModuleName (protoModuleName)
+import Debug.Trace (traceShowId)
 
 -- | This behaves the same as 'Distribution.Simple.defaultMain', but
 -- auto-generates Haskell files from .proto files which are:
@@ -174,11 +181,17 @@ generatingProtos root = generatingSpecificProtos root getProtos
       pure
            . filter (\f -> takeExtension f == ".proto")
            . map (makeRelative root)
-           . filter (isSubdirectoryOf root)
+           . traceShowId
+           . filter (isSubdirectoryOf root) 
+#if MIN_VERSION_Cabal(3,14,0)
+           . map getSymbolicPath
+#else
+#endif
            $ files
 
-match :: PackageDescription -> FilePath -> IO [FilePath]
-#if MIN_VERSION_Cabal(2,4,0)
+#if MIN_VERSION_Cabal(3,14,0)
+match desc f = matchDirFileGlob normal (specVersion desc) (Nothing) f
+#elif MIN_VERSION_Cabal(2,4,0)
 match desc f = matchDirFileGlob normal (specVersion desc) "." f
 #else
 match _ f = matchFileGlob f
@@ -254,7 +267,13 @@ generateSources root l files = withSystemTempDirectory "protoc-out" $ \tmpDir ->
           let sourcePath = tmpDir </> f
           sourceExists <- doesFileExist sourcePath
           when sourceExists $ do
-            let dest = autogenComponentModulesDir l compBI </> f
+            let dir = autogenComponentModulesDir l compBI
+                dest =
+#if MIN_VERSION_Cabal(3,14,0)
+                    getSymbolicPath
+#else
+#endif
+                        dir </> f
             copyIfDifferent sourcePath dest
 
 -- Note: we do a copy rather than a move since a given module may be used in
