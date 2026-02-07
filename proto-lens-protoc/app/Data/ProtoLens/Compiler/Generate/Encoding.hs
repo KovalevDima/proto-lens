@@ -325,7 +325,7 @@ parseFieldCase loop x f = case plainFieldKind f of
     info = plainFieldInfo f
     valueCase = match [int (fieldTag info)] $ do'
         [ y <-- parseField info
-        , stmt . loop . updateParseStateFlip info (just' y)
+        , stmt . loop . updateParseStateFlip info y
             $ x
         ]
     requiredCase = match [int (fieldTag info)] $ do'

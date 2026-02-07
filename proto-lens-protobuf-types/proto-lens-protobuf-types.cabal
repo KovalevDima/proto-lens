@@ -48,54 +48,30 @@ library
       Data.ProtoLens.Any
       Data.ProtoLens.Descriptor
       Proto.Google.Protobuf.Any
-      Proto.Google.Protobuf.Any_Fields
       Proto.Google.Protobuf.Api
-      Proto.Google.Protobuf.Api_Fields
       Proto.Google.Protobuf.Compiler.Plugin
-      Proto.Google.Protobuf.Compiler.Plugin_Fields
       Proto.Google.Protobuf.Descriptor
-      Proto.Google.Protobuf.Descriptor_Fields
       Proto.Google.Protobuf.Duration
-      Proto.Google.Protobuf.Duration_Fields
       Proto.Google.Protobuf.Empty
-      Proto.Google.Protobuf.Empty_Fields
       Proto.Google.Protobuf.FieldMask
-      Proto.Google.Protobuf.FieldMask_Fields
       Proto.Google.Protobuf.SourceContext
-      Proto.Google.Protobuf.SourceContext_Fields
       Proto.Google.Protobuf.Struct
-      Proto.Google.Protobuf.Struct_Fields
       Proto.Google.Protobuf.Timestamp
-      Proto.Google.Protobuf.Timestamp_Fields
       Proto.Google.Protobuf.Type
-      Proto.Google.Protobuf.Type_Fields
       Proto.Google.Protobuf.Wrappers
-      Proto.Google.Protobuf.Wrappers_Fields
   autogen-modules:
       Proto.Google.Protobuf.Any
-      Proto.Google.Protobuf.Any_Fields
       Proto.Google.Protobuf.Api
-      Proto.Google.Protobuf.Api_Fields
       Proto.Google.Protobuf.Compiler.Plugin
-      Proto.Google.Protobuf.Compiler.Plugin_Fields
       Proto.Google.Protobuf.Descriptor
-      Proto.Google.Protobuf.Descriptor_Fields
       Proto.Google.Protobuf.Duration
-      Proto.Google.Protobuf.Duration_Fields
       Proto.Google.Protobuf.Empty
-      Proto.Google.Protobuf.Empty_Fields
       Proto.Google.Protobuf.FieldMask
-      Proto.Google.Protobuf.FieldMask_Fields
       Proto.Google.Protobuf.SourceContext
-      Proto.Google.Protobuf.SourceContext_Fields
       Proto.Google.Protobuf.Struct
-      Proto.Google.Protobuf.Struct_Fields
       Proto.Google.Protobuf.Timestamp
-      Proto.Google.Protobuf.Timestamp_Fields
       Proto.Google.Protobuf.Type
-      Proto.Google.Protobuf.Type_Fields
       Proto.Google.Protobuf.Wrappers
-      Proto.Google.Protobuf.Wrappers_Fields
   hs-source-dirs:
       src
   build-tool-depends:

@@ -106,7 +106,6 @@ generateModule modName fdesc imports publicImports definitions importedEnv servi
          ++ map uncommented packedFileDescriptorProto
       ]
   where
-    fieldModName = fromString $ moduleNameString (unModuleNameStr modName) ++ "_Fields"
     pragmas =
           [ languagePragma $ List.intercalate ", " $ map fromString
               ["ScopedTypeVariables", "DataKinds", "TypeFamilies",
