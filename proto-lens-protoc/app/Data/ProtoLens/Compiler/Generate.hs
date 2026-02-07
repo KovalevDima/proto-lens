@@ -860,21 +860,6 @@ hsFieldValueDefault env fd = case fd ^. #type' of
         _ -> errorMessage "integral"
 
 
--- | A lens that maps from a oneof sum type to one of its individual cases.
---
--- For example, with
---     data Foo = Bar Int32 | Baz Int64
---
--- this will generate a lens of type @Lens' (Maybe Foo) (Maybe Int32)@.
---
--- (Recall that oneofs are stored in a proto message as @Maybe Foo@, where
--- 'Nothing' means that it's either set to an unknown value or unset.)
---
--- lens
---   (\ x__ -> case x__ of
---       Prelude.Just (Foo'c x__val) -> Prelude.Just x__val
---       otherwise -> Prelude.Nothing)
---   (\ _ y__ -> fmap Foo'c y__
 oneofFieldAccessor :: OneofCase -> HsExpr'
 oneofFieldAccessor o
         = var "Lens.Family2.Unchecked.lens" @@ getter @@ setter
