@@ -219,21 +219,6 @@ reexported imp = imp { ideclName = noLoc m', ideclAs = Just m }
     m' = mkModuleName $ "Data.ProtoLens.Runtime." ++ moduleNameString (unLoc m)
     m = ideclName imp
 
-messageComment :: ModuleNameStr -> OccNameStr -> [RecordField] -> Outputable.SDoc
-messageComment fieldModName n fields =
-    Outputable.vcat
-        $ [Outputable.text "Fields :", ""]
-            ++ map item (concatMap recordFieldLenses fields)
-  where
-    item :: LensInstance -> Outputable.SDoc
-    item l = Outputable.text (printf "    * '%s.%s' @:: "
-                 (moduleNameStrToString fieldModName)
-                 (occNameStrToString $ nameFromSymbol $ lensSymbol l))
-             Outputable.<>
-                 Outputable.ppr (var "Lens'" @@ t @@ lensFieldType l)
-             Outputable.<> Outputable.char '@'
-    t = var (unqual n)
-
 generateMessageExports :: MessageInfo OccNameStr -> [IE']
 generateMessageExports m =
     -- Hide the message contructor, but expose "oneof" case constructors.
