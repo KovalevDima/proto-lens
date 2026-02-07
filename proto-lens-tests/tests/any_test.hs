@@ -6,7 +6,6 @@ import qualified Data.ByteString as B
 import Data.ProtoLens
 import Data.ProtoLens.Any
 import Data.ProtoLens.Arbitrary (ArbitraryMessage(..))
-import Proto.Google.Protobuf.Any_Fields (typeUrl, value)
 import Lens.Family2 ((&), (.~), (^.))
 import Test.Tasty.HUnit (testCase, (@=?))
 import qualified Data.Text as Text
@@ -14,7 +13,6 @@ import Test.QuickCheck ((===), counterexample, listOf, elements)
 
 import Data.ProtoLens.TestUtil
 import Proto.Any
-import Proto.Any_Fields
 
 isDifferentType, isDecodingError :: Either UnpackError a -> Bool
 isDifferentType (Left DifferentType{}) = True

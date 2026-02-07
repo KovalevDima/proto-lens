@@ -107,6 +107,12 @@ class Message msg where
     -- | Access the unknown fields of a Message.
     unknownFields :: Lens' msg FieldSet
 
+    -- | Update the unknown fields of a Message.
+    setUnknownFields :: FieldSet -> msg -> msg
+
+    -- | Access the unknown fields of a Message.
+    getUnknownFields :: msg -> FieldSet
+
     -- | Decode a message value.
     --
     -- See also the functions in "Data.ProtoLens.Encoding".
@@ -149,8 +155,7 @@ isRequired _ = False
 data FieldAccessor msg value where
     -- A field which is stored in the proto as just a value.  Used for
     -- required fields and proto3 optional scalar fields.
-    PlainField :: WireDefault value -> Lens' msg value
-                     -> FieldAccessor msg value
+    PlainField :: WireDefault value -> Lens' msg value -> FieldAccessor msg value
     -- An optional field where the "unset" and "default" values are
     -- distinguishable.  In particular: proto2 optional fields, proto3
     -- messages, and "oneof" fields.
@@ -323,4 +328,4 @@ data SomeMessageType where
 
 -- TODO: recursively
 discardUnknownFields :: Message msg => msg -> msg
-discardUnknownFields = set unknownFields []
+discardUnknownFields = setUnknownFields []

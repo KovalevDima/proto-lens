@@ -117,27 +117,35 @@ finish m s = do' $
     [ bvar frozen <-- unsafeLiftIO' @@
                     (var "Data.ProtoLens.Encoding.Growing.unsafeFreeze"
                         @@ mutable)
-    | (frozen, mutable) <- Map.elems $ Map.intersectionWith (,)
-                                frozenNames (repeatedFieldMVectors s)
+    | (frozen, mutable) <- Map.elems $ Map.intersectionWith (,) frozenNames (repeatedFieldMVectors s)
     ]
     ++
     [ stmt $ checkMissingFields s
-    , stmt $ var "Prelude.return" @@
-        (over' unknownFields' (var "Prelude.reverse")
-            @@ foldr (@@)
-                (partialMessage s)
-                (Map.intersectionWith
-                    (\finfo frozen ->
-                        var "Lens.Family2.set"
-                            @@ fieldOfVector finfo
-                            @@ var (unqual frozen))
-                repeatedInfos frozenNames))
-            ]
+    , stmt $ var "Prelude.return"
+        @@
+        if null updates
+        then var "x"
+        else recordUpd (var "x") (
+                -- undefined: add reverse here
+                -- [(unqual (messageUnknownFields m), var "flds")]
+                -- ++
+                updates
+            )
+    ]
 
   where
+    updates :: [(RdrNameStr, HsExpr')]
+    updates =
+        Map.elems (
+            Map.intersectionWith
+                (\finfo frozen ->
+                    ((unqual . haskellRecordFieldName . fieldName $ finfo), var (unqual frozen))
+                )
+                repeatedInfos
+                frozenNames
+            )
     repeatedInfos = repeatedFields m
-    frozenNames = (\f -> nameFromSymbol $ "frozen'" <> overloadedFieldName f)
-                    <$> repeatedInfos
+    frozenNames = (haskellRecordFieldName . fieldName) <$> repeatedInfos
 
 -- | The state of the parsing loop.  Each instance of @v@ corresponds
 -- to an argument of the loop function.
@@ -317,15 +325,13 @@ parseFieldCase loop x f = case plainFieldKind f of
     info = plainFieldInfo f
     valueCase = match [int (fieldTag info)] $ do'
         [ y <-- parseField info
-        , stmt . loop . updateParseState (setField info @@ y)
+        , stmt . loop . updateParseStateFlip info (just' y)
             $ x
         ]
     requiredCase = match [int (fieldTag info)] $ do'
         [ y <-- parseField info
-        , stmt . loop
-               . updateParseState (setField info @@ y)
-               . markRequiredField (fieldId f)
-               $ x
+        , stmt . loop . updateParseStateFlip info y
+            $ markRequiredField (fieldId f) x
         ]
     unpackedCase = match [int (fieldTag info)]
         $ let (appendStmt, x') = appendToRepeated (fieldId f) y x
@@ -397,10 +403,21 @@ unknownFieldCase info loop x = match [wire] $ do' $
     y = bvar "y"
     utag = bvar "utag"
 
--- | An expression of type "b -> a -> a", corresponding to a Lens a b
--- for this field.
-setField :: FieldInfo -> HsExpr'
-setField f = var "Lens.Family2.set" @@ fieldOf f
+-- | Transform the loop arguments by applying a given function
+-- to the intermediate message value.
+updateParseStateFlip ::
+       FieldInfo
+    -> HsExpr'
+    -> ParseState HsExpr'
+    -> ParseState HsExpr'
+updateParseStateFlip f y s = s{partialMessage = upd}
+    where
+    upd =
+        recordUpd (partialMessage s)
+        [((unqual . haskellRecordFieldName . fieldName) f, y)]
+
+just' :: HsExpr' -> HsExpr'
+just' x = var "Prelude.Just" @@ x
 
 -- | An expression of type "(b -> b) -> a -> a", corresponding to a
 -- Lens a b for this field.
@@ -471,12 +488,12 @@ generatedBuilder m =
 buildUnknown :: HsExpr' -> HsExpr'
 buildUnknown x
     = var "Data.ProtoLens.Encoding.Wire.buildFieldSet"
-                @@ (view' @@ unknownFields' @@ x)
+                @@ (getUnknownFields' @@ x)
 
 buildUnknownMessageSet :: HsExpr' -> HsExpr'
 buildUnknownMessageSet x
     = var "Data.ProtoLens.Encoding.Wire.buildMessageSet"
-                @@ (view' @@ unknownFields' @@ x)
+                @@ (getUnknownFields' @@ x)
 
 -- | Concatenate a list of Monoids into a single value.
 -- For example, foldMapExp [a,b,c] will be transformed into
@@ -514,13 +531,13 @@ buildPlainField x f = case plainFieldKind f of
     info = plainFieldInfo f
     v = "_v"
     v' = bvar v
-    fieldValue = view'
+    fieldValue = var ""
                     @@ fieldOf info
                     @@ x
-    maybeFieldValue = view'
+    maybeFieldValue = var ""
                         @@ fieldOfMaybe info
                         @@ x
-    vectorFieldValue = view'
+    vectorFieldValue = var ""
                         @@ fieldOfVector info
                         @@ x
     {- Builds a value of the given map entry type
@@ -532,10 +549,11 @@ buildPlainField x f = case plainFieldKind f of
     -}
     buildEntry entry kv
         = buildTaggedField info
-            $ set'
+            $ var "Lens.Family2.set"
                 @@ fieldOf (keyField entry)
                 @@ (var "Prelude.fst" @@ kv)
-                @@ (set' @@ fieldOf (valueField entry)
+                @@ (var "Lens.Family2.set"
+                         @@ fieldOf (valueField entry)
                          @@ (var "Prelude.snd" @@ kv)
                          @@ (var "Data.ProtoLens.defMessage"
                                 @::@ var (unqual $ mapEntryTypeName entry)))
@@ -547,8 +565,7 @@ fieldOfMaybe :: FieldInfo -> HsExpr'
 fieldOfMaybe = fieldOfExp . ("maybe'" <>) . overloadedFieldName
 
 fieldOfOneof :: OneofInfo -> HsExpr'
-fieldOfOneof =
-    fieldOfExp . ("maybe'" <>) . overloadedName . oneofFieldName
+fieldOfOneof = fieldOfExp . ("maybe'" <>) . overloadedName . oneofFieldName
 
 fieldOfVector :: FieldInfo -> HsExpr'
 fieldOfVector = fieldOfExp . ("vec'" <>) . overloadedFieldName
@@ -613,17 +630,16 @@ groupEndTag num = makeTag num groupEnd
 --
 -- field @"fieldName"
 fieldOfExp :: Symbol -> HsExpr'
-fieldOfExp sym = tyApp (var "Data.ProtoLens.Field.field") (promoteSymbol sym)
+fieldOfExp sym = tyApp (var "GHC.Records.getField") (promoteSymbol sym)
 
 -- | Some functions that are used in multiple places in the generated code.
-getVarInt', putVarInt', mempty', view', set', unknownFields', unsafeLiftIO'
-    :: HsExpr'
+getVarInt', putVarInt', mempty', view', unknownFields', getUnknownFields', unsafeLiftIO' :: HsExpr'
 getVarInt' = var "Data.ProtoLens.Encoding.Bytes.getVarInt"
 putVarInt' = var "Data.ProtoLens.Encoding.Bytes.putVarInt"
 mempty' = var "Data.Monoid.mempty"
 view' = var "Lens.Family2.view"
-set' = var "Lens.Family2.set"
 unknownFields' = var "Data.ProtoLens.unknownFields"
+getUnknownFields' = var "Data.ProtoLens.getUnknownFields"
 unsafeLiftIO' = var "Data.ProtoLens.Encoding.Parser.Unsafe.unsafeLiftIO"
 
 -- | Returns an expression of type @Parser a@ for the given field.

@@ -50,9 +50,7 @@ executable proto-lens-protoc
       Data.ProtoLens.Compiler.Generate.Field
       Data.ProtoLens.Compiler.Plugin
       Proto.Google.Protobuf.Compiler.Plugin
-      Proto.Google.Protobuf.Compiler.Plugin_Fields
       Proto.Google.Protobuf.Descriptor
-      Proto.Google.Protobuf.Descriptor_Fields
       Paths_proto_lens_protoc
   hs-source-dirs:
       app

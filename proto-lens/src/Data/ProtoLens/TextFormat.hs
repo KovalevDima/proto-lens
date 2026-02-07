@@ -265,8 +265,7 @@ modifyField :: FieldAccessor msg value -> value -> msg -> msg
 modifyField (PlainField _ f) value = set f value
 modifyField (OptionalField f) value = set f (Just value)
 modifyField (RepeatedField _ f) value = over f (value :)
-modifyField (MapField key value f) mapElem
-    = over f (Map.insert (mapElem ^. key) (mapElem ^. value))
+modifyField (MapField key value f) mapElem = over f (Map.insert (mapElem ^. key) (mapElem ^. value))
 
 makeValue
     :: forall value
