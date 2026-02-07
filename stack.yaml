@@ -11,7 +11,6 @@ packages:
 - proto-lens
 - proto-lens-arbitrary
 - proto-lens-benchmarks
-- proto-lens-optparse
 - proto-lens-protobuf-types
 - proto-lens-protoc
 - proto-lens-runtime
