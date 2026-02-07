@@ -2,16 +2,19 @@
 
 ## Table of Contents
 
-1. [Message Generation](#message-generation)
-2. [Oneof Generation](#oneof-generation)
-3. [Enum Generation](#enum-generation)
-4. [Field Overloading](#field-overloading)
-5. [Any](#any)
-6. [Repeated](#repeated)
-7. [Map](#map)
-8. [Lens Laws](#lens-laws)
-9. [Example: Person](https://github.com/google/proto-lens/tree/master/proto-lens-tutorial/person)
-10. [Example: Coffee Order](https://github.com/google/proto-lens/tree/master/proto-lens-tutorial/coffee-order)
+- [proto-lens-tutorial](#proto-lens-tutorial)
+  - [Table of Contents](#table-of-contents)
+  - [Message Generation](#message-generation)
+  - [Oneof Generation](#oneof-generation)
+  - [Enum Generation](#enum-generation)
+  - [Field Overloading](#field-overloading)
+    - [OverloadedLabels](#overloadedlabels)
+    - [The `fields` function](#the-fields-function)
+    - [The `*_Fields.hs` module](#the-_fieldshs-module)
+  - [Any](#any)
+  - [Repeated](#repeated)
+  - [Map](#map)
+  - [Encode/Decode and Show/Read](#encodedecode-and-showread)
 
 ## Message Generation
 
@@ -174,11 +177,8 @@ instance HasField Foo "baz" (Data.Text.Text)
 
 instance HasField Bar "baz" (Data.Int.Int32)
 ```
-The fields are overloaded on the symbol `baz` but connect `Foo` to `Text` and `Bar` to `Int32`. Then we can find that there is one, polymorphic definition in the `Foo_Fields.hs` file:
-``` haskell
-baz :: HasField s "baz" a => Lens' s a
-baz = Data.ProtoLens.Field.field @"baz"
-```
+The fields are overloaded on the symbol `baz` but connect `Foo` to `Text` and `Bar` to `Int32`.
+
 If we have any other records that also contain `baz` from other modules these lenses could also be used to access them. We should take care in these cases as to only import one version of `baz` when we are doing this, otherwise name clashes will occur.
 
 The use of `baz` can be done in three ways; which way you choose is up to you and your style.
@@ -351,47 +351,3 @@ decodeMessage :: Message msg => ByteString -> Either String msg
 showMessage :: Message msg => msg  -> String
 readMessage :: Message msg => Text -> Either String msg
 ```
-
-## Lens Laws
-
-Underneath there is a function that is used for creating lenses:
-``` haskell
-Data.ProtoLens.maybeLens :: a -> Lens' (Maybe a) a
-```
-
-We should note that `maybeLens` does not satisfy the lens laws, which expect that:
-``` haskell
-set l (view l x) == x
-```
-
-An example of an offending case is:
-``` haskell
-set (maybeLens 'a') (view (maybeLens 'a') Nothing) == Just 'a'
-```
-
-However, this is the behavior generally expected by users, and only matters if we're explicitly checking whether a field is set.
-
-Another pitfall is when interacting with `oneof` fields it is possible to clear existing values. For example if we have the following proto:
-
-``` protobuf
-message Foo {
-  oneof bar {
-    int32 baz = 1;
-    string bippy = 2;
-  }
-}
-```
-we can end up doing the following:
-``` haskell
-fooVal :: P.Foo
-fooVal = defMessage & P.maybe'baz ?~ 42
-
-fooVal' :: P.Foo
-fooVal' = fooVal & P.maybe'bippy .~ Nothing
-
-main :: IO ()
-main = do
-  print fooVal  -- outputs: "{ bar: 42 }"
-  print fooVal' -- outputs: "{}"
-```
-We have cleared the previously set `Just (Foo'Baz 42)` value by doing `P.maybe'bippy .~ Nothing`. To try and avoid this it would be best to organise your code by using the `Prism'` functions for `oneof` fields instead.
