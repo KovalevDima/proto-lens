@@ -24,8 +24,6 @@ PACKAGES_TO_INSTALL="
     proto-lens-setup
     proto-lens-protobuf-types
     proto-lens-arbitrary
-    proto-lens-optparse
-    proto-lens-discrimination
     proto-lens-tests-dep
 "
 

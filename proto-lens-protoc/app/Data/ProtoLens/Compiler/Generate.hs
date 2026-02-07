@@ -104,14 +104,8 @@ generateModule modName fdesc imports publicImports definitions importedEnv servi
           $ concatMap generateDecls (Map.toList definitions)
          ++ map uncommented (concatMap (generateServiceDecls env) services)
          ++ map uncommented packedFileDescriptorProto
-      , CommentedModule pragmas
-            (module' (Just fieldModName) Nothing
-                (sharedImports ++ map importQualified imports) [])
-          $ map uncommented
-          $ concatMap generateFieldDecls allLensNames
       ]
   where
-    fieldModName = fromString $ moduleNameString (unModuleNameStr modName) ++ "_Fields"
     pragmas =
           [ languagePragma $ List.intercalate ", " $ map fromString
               ["ScopedTypeVariables", "DataKinds", "TypeFamilies",
@@ -132,7 +126,7 @@ generateModule modName fdesc imports publicImports definitions importedEnv servi
     mainImports = map (reexported . importQualified)
                     [ "Control.DeepSeq", "Data.ProtoLens.Prism" ]
     sharedImports = map (reexported . importQualified)
-              [ "Prelude", "Data.Int", "Data.Monoid", "Data.Word", "Data.Maybe"
+              [ "Prelude", "Data.Int", "Data.Monoid", "Data.Word", "Data.Maybe", "GHC.Records"
               , "Data.ProtoLens"
               , "Data.ProtoLens.Encoding.Bytes"
               , "Data.ProtoLens.Encoding.Growing"
@@ -151,7 +145,7 @@ generateModule modName fdesc imports publicImports definitions importedEnv servi
               ]
     env = Map.union (unqualifyEnv definitions) importedEnv
     generateDecls (protoName, Message m)
-        = generateMessageDecls fieldModName env (stripDotPrefix protoName) m
+        = generateMessageDecls env (stripDotPrefix protoName) m
        ++ map uncommented (concatMap (generatePrisms env) (messageOneofFields m))
     generateDecls (_, Enum e) = map uncommented $ generateEnumDecls e
     generateExports (Message m) = generateMessageExports m
@@ -224,21 +218,6 @@ reexported imp = imp { ideclName = noLoc m', ideclAs = Just m }
     m' = mkModuleName $ "Data.ProtoLens.Runtime." ++ moduleNameString (unLoc m)
     m = ideclName imp
 
-messageComment :: ModuleNameStr -> OccNameStr -> [RecordField] -> Outputable.SDoc
-messageComment fieldModName n fields =
-    Outputable.vcat
-        $ [Outputable.text "Fields :", ""]
-            ++ map item (concatMap recordFieldLenses fields)
-  where
-    item :: LensInstance -> Outputable.SDoc
-    item l = Outputable.text (printf "    * '%s.%s' @:: "
-                 (moduleNameStrToString fieldModName)
-                 (occNameStrToString $ nameFromSymbol $ lensSymbol l))
-             Outputable.<>
-                 Outputable.ppr (var "Lens'" @@ t @@ lensFieldType l)
-             Outputable.<> Outputable.char '@'
-    t = var (unqual n)
-
 generateMessageExports :: MessageInfo OccNameStr -> [IE']
 generateMessageExports m =
     -- Hide the message contructor, but expose "oneof" case constructors.
@@ -305,12 +284,12 @@ generateServiceDecls env si =
                        Enum _ -> error "Service must have a message type"
 
 
-generateMessageDecls :: ModuleNameStr -> Env RdrNameStr -> T.Text -> MessageInfo OccNameStr -> [CommentedDecl]
-generateMessageDecls fieldModName env protoName info =
+generateMessageDecls :: Env RdrNameStr -> T.Text -> MessageInfo OccNameStr -> [CommentedDecl]
+generateMessageDecls env protoName info =
     -- data Bar = Bar {
     --    foo :: Baz
     -- }
-    [ commented (messageComment fieldModName (messageName info) allFields)
+    [ commented ("")
         $ data' dataName []
             [recordCon (messageConstructorName info) $
                 [ (recordFieldName f, strict $ field $ recordFieldType f)
@@ -352,11 +331,12 @@ generateMessageDecls fieldModName env protoName info =
     -- Note: for optional fields, this generates an instance both for "foo" and
     -- for "maybe'foo" (see plainRecordField below).
     [ uncommented $ instance'
-        (var "Data.ProtoLens.Field.HasField" @@ dataType @@ sym @@ t)
-            [funBind "fieldOf" $ match [wildP] $
-                var "Prelude.."
-                    @@ rawFieldAccessor (unqual $ recordFieldName li)
-                    @@ lensExp i]
+        (var "GHC.Records.HasField" @@ sym @@ dataType @@ t)
+            [funBind "getField" $ match [] $
+                 var "Prelude.."
+                    @@ lensExp i
+                    @@ var (unqual $ recordFieldName li)
+            ]
     | li <- allFields
     , i <- recordFieldLenses li
     , let t = lensFieldType i
@@ -677,22 +657,6 @@ generateEnumDecls info =
         | Just u <- [unrecognized]
         ]
 
-generateFieldDecls :: Symbol -> [HsDecl']
-generateFieldDecls xStr =
-    -- foo :: forall f s a
-    --        . (Functor f, HasLens s x a) => LensLike' f s a
-    -- foo = fieldOf @s
-    [ typeSig x
-          $ forall' [bvar "f", bvar "s", bvar "a"]
-          $ [ var "Prelude.Functor" @@ var "f"
-            , var "Data.ProtoLens.Field.HasField" @@ var "s" @@ xSym @@ var "a"
-            ]
-          ==> var "Lens.Family2.LensLike'" @@ var "f" @@ var "s" @@ var "a"
-    , valBind x $ fieldOfExp xStr
-    ]
-  where
-    x = nameFromSymbol xStr
-    xSym = promoteSymbol xStr
 
 ------------------------------------------
 
@@ -730,14 +694,14 @@ plainRecordField env (PlainFieldInfo kind f) = case kind of
                   [LensInstance
                       { lensSymbol = baseName
                       , lensFieldType = baseType
-                      , lensExp = rawAccessor
+                      , lensExp = var "Prelude.id"
                       }]
     OptionalValueField
               -> recordField baseType
                     [LensInstance
                       { lensSymbol = baseName
                       , lensFieldType = baseType
-                      , lensExp = rawAccessor
+                      , lensExp = var "Prelude.id"
                       }]
     -- data Foo = Foo { _Foo_bar :: Maybe Bar }
     -- type instance Field "bar" Foo = Bar
@@ -745,14 +709,9 @@ plainRecordField env (PlainFieldInfo kind f) = case kind of
     OptionalMaybeField ->
               recordField maybeType
                   [LensInstance
-                      { lensSymbol = baseName
-                      , lensFieldType = baseType
-                      , lensExp = maybeAccessor
-                      }
-                  , LensInstance
                       { lensSymbol = "maybe'" <> baseName
                       , lensFieldType = maybeType
-                      , lensExp = rawAccessor
+                      , lensExp = var "Prelude.id"
                       }
                   ]
         -- data Foo = Foo { _Foo_bar :: Map Bar Baz }
@@ -765,7 +724,7 @@ plainRecordField env (PlainFieldInfo kind f) = case kind of
                   [LensInstance
                        { lensSymbol = baseName
                        , lensFieldType = mapType
-                       , lensExp = rawAccessor
+                       , lensExp = var "Prelude.id"
                        }]
         -- data Foo = Foo { _Foo_bar :: [Bar] }
         -- type instance Field "bar" Foo = [Bar]
@@ -774,12 +733,12 @@ plainRecordField env (PlainFieldInfo kind f) = case kind of
                   [ LensInstance
                       { lensSymbol = baseName
                       , lensFieldType = listType
-                      , lensExp = vectorAccessor
+                      , lensExp = var "Data.Vector.Generic.toList"
                       }
                   , LensInstance
                       { lensSymbol = "vec'" <> baseName
                       , lensFieldType = vectorType
-                      , lensExp = rawAccessor
+                      , lensExp = var "Prelude.id"
                       }
                   ]
   where
@@ -790,16 +749,6 @@ plainRecordField env (PlainFieldInfo kind f) = case kind of
     maybeType = var "Prelude.Maybe" @@ baseType
     listType = listTy baseType
     vectorType = hsFieldVectorType f @@ baseType
-    rawAccessor = var "Prelude.id"
-    maybeAccessor = var "(\\x -> Lens.Family2.Unchecked.lens (Data.Maybe.fromMaybe x) (Prelude.const Prelude.Just))"
-                          @@ hsFieldValueDefault env fd
-
-vectorAccessor :: HsExpr'
-vectorAccessor = var "Lens.Family2.Unchecked.lens" @@ getter @@ setter
-  where
-    getter = var "Data.Vector.Generic.toList"
-    setter = lambda [wildP, bvar "y__"]
-                $ var "Data.Vector.Generic.fromList" @@ var "y__"
 
 oneofRecordField :: Env RdrNameStr -> OneofInfo -> RecordField
 oneofRecordField env oneofInfo
@@ -909,31 +858,7 @@ hsFieldValueDefault env fd = case fd ^. #type' of
         [(x, "")] -> int x
         _ -> errorMessage "integral"
 
--- | A lens to access an internal field.
---
---   lens _Foo_bar (\x__ y__ -> x__ { _Foo_bar = y__ })
-rawFieldAccessor :: RdrNameStr -> HsExpr'
-rawFieldAccessor f = var "Lens.Family2.Unchecked.lens" @@ getter @@ setter
-  where
-    getter = var f
-    setter = lambda [bvar "x__", bvar "y__"]
-                    $ recordUpd (var "x__") [(f, var "y__")]
 
--- | A lens that maps from a oneof sum type to one of its individual cases.
---
--- For example, with
---     data Foo = Bar Int32 | Baz Int64
---
--- this will generate a lens of type @Lens' (Maybe Foo) (Maybe Int32)@.
---
--- (Recall that oneofs are stored in a proto message as @Maybe Foo@, where
--- 'Nothing' means that it's either set to an unknown value or unset.)
---
--- lens
---   (\ x__ -> case x__ of
---       Prelude.Just (Foo'c x__val) -> Prelude.Just x__val
---       otherwise -> Prelude.Nothing)
---   (\ _ y__ -> fmap Foo'c y__
 oneofFieldAccessor :: OneofCase -> HsExpr'
 oneofFieldAccessor o
         = var "Lens.Family2.Unchecked.lens" @@ getter @@ setter
@@ -957,13 +882,17 @@ messageInstance env protoName m =
     , valBind "fieldsByTag" $
           let' (map (fieldDescriptorVarBind $ messageName m) fields)
               $ var "Data.Map.fromList" @@ list fieldsByTag
-    , valBind "unknownFields"
-           $ rawFieldAccessor (unqual $ messageUnknownFields m)
+    , valBind "getUnknownFields"
+           $ var (unqual $ messageUnknownFields m)
+    , funBind "setUnknownFields"
+           $ match [bvar "flds", bvar "msg"]
+              $ recordUpd (var "msg")
+                  [(unqual (messageUnknownFields m), var "flds")]
     , valBind "defMessage"
            $ recordConE (unqual $ messageConstructorName m) $
-                  [ (unqual $ haskellRecordFieldName
-                                    $ fieldName $ plainFieldInfo f,
-                        hsFieldDefault env f)
+                  [ ( unqual $ haskellRecordFieldName $ fieldName $ plainFieldInfo f
+                    , hsFieldDefault env f
+                    )
                   | f <- messageFields m
                   ] ++
                   [ (unqual $ haskellRecordFieldName $ oneofFieldName o,
@@ -1057,7 +986,7 @@ fieldAccessorExpr (PlainFieldInfo kind f) = accessorCon @@ fieldOfExp hsFieldNam
             _ -> overloadedField f
 
 fieldOfExp :: Symbol -> HsExpr'
-fieldOfExp sym = var "Data.ProtoLens.Field.field" `tyApp` promoteSymbol sym
+fieldOfExp sym = var "GHC.Records.getField" `tyApp` promoteSymbol sym
 
 overloadedField :: FieldInfo -> Symbol
 overloadedField = overloadedName . fieldName

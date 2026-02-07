@@ -28,6 +28,7 @@ library
       Paths_proto_lens_runtime
   reexported-modules:
       Prelude as Data.ProtoLens.Runtime.Prelude
+    , GHC.Records as Data.ProtoLens.Runtime.GHC.Records
     , Data.Maybe as Data.ProtoLens.Runtime.Data.Maybe
     , Control.DeepSeq as Data.ProtoLens.Runtime.Control.DeepSeq
     , Data.Int as Data.ProtoLens.Runtime.Data.Int
